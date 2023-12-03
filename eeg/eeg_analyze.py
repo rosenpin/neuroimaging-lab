@@ -1,0 +1,93 @@
+import mne
+import matplotlib.pyplot as plt
+from mne.io.eeglab.eeglab import RawEEGLAB
+import numpy as np
+
+FILE_PATH = "eeg/4EB_01-100.set"  # Replace with the path to your .set file
+
+
+def interpolate_bad_channels(raw: RawEEGLAB, show=False):
+    # plot the data to get an idea of what it looks like and to determine bad channels
+    if show:
+        raw.plot()
+        plt.show()
+
+    # after determining bad channels, add them to the list of bad channels
+    raw.info.bads = ["PO5", "PO6", "T7"]
+    raw.interpolate_bads()
+
+
+def run_ica_and_remove_eye_movement(raw: RawEEGLAB):
+    # run ICA on the data
+    ica = mne.preprocessing.ICA(n_components=15, random_state=97)
+
+    # As ICA is sensitive to low-frequency drifts, it requires the data to be high-pass filtered prior to fitting.
+    # Typically, a cutoff frequency of 1 Hz is recommended.
+    filtered = raw.copy().filter(
+        l_freq=1, h_freq=None, verbose=True
+    )  # high-pass filtering
+    # Fit the ICA model to the data
+    ica.fit(filtered)
+
+    # plot the components to determine which ones are eye movements
+    ica.plot_components()
+    plt.show()
+
+    # remove the eye movement components
+    ica.exclude = [3, 4]
+    ica.apply(raw)
+
+    ica.plot_components()
+    plt.show()
+
+
+def plot_psd(raw: RawEEGLAB, show=False):
+    events = mne.events_from_annotations(raw)[0]
+    # Extract 120s following event IDs 43 and 32
+    epochs = mne.Epochs(
+        raw, events, event_id=[43, 32], tmin=0, tmax=120, preload=True, baseline=(0, 0)
+    )
+
+    # ex2d
+    # psd_welch doesn't exist in my version so doing a workaround with psd_array_welch
+    # I compute the PSD between 8Hz and 12Hz
+    psd, freqs = mne.time_frequency.psd_array_welch(
+        epochs.get_data(), raw.info["sfreq"], average="mean", fmin=8, fmax=12
+    )
+    # The variable psd will contain the amplitudes and freqs will contain the frequencies. 
+    # It is conventional to plot PSD using a logarithmic scale.
+    psd = 10 * np.log10(psd)
+
+    # find POZ index so we can plot it later
+    poz_index = epochs.ch_names.index("POZ")
+
+    # find the relevant events to plot
+    psd_poz_1 = psd[0, poz_index, :]
+    psd_poz_2 = psd[1, poz_index, :]
+
+    if (not show):
+        return
+
+    # plot the PSD
+    plt.plot(freqs, psd_poz_1, label="43")
+    plt.plot(freqs, psd_poz_2, label="32")
+    # add labels and title
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("PSD (dB/Hz)")
+    plt.title("PSD of POZ Channel")
+    plt.grid(True)
+
+    plt.show()
+
+
+# Load the data
+raw_eeg_data: RawEEGLAB = mne.io.read_raw_eeglab(FILE_PATH, preload=True)
+
+# step 1
+interpolate_bad_channels(raw_eeg_data, show=False)
+
+# step 2
+run_ica_and_remove_eye_movement(raw_eeg_data)
+
+# step 3
+plot_psd(raw_eeg_data, show=True)
