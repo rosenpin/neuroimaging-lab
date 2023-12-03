@@ -13,11 +13,15 @@ def interpolate_bad_channels(raw: RawEEGLAB, show=False):
         plt.show()
 
     # after determining bad channels, add them to the list of bad channels
-    raw.info.bads = ["PO5", "PO6", "T7"]
+    raw.info["bads"] = ["PO5", "PO6", "T7"]
     raw.interpolate_bads()
 
+    if show:
+        raw.plot()
+        plt.show()
 
-def run_ica_and_remove_eye_movement(raw: RawEEGLAB):
+
+def run_ica_and_remove_eye_movement(raw: RawEEGLAB, show=False):
     # run ICA on the data
     ica = mne.preprocessing.ICA(n_components=15, random_state=97)
 
@@ -30,15 +34,17 @@ def run_ica_and_remove_eye_movement(raw: RawEEGLAB):
     ica.fit(filtered)
 
     # plot the components to determine which ones are eye movements
-    ica.plot_components()
-    plt.show()
+    if (show):
+        ica.plot_components()
+        plt.show()
 
     # remove the eye movement components
     ica.exclude = [3, 4]
     ica.apply(raw)
 
-    ica.plot_components()
-    plt.show()
+    if (show):
+        ica.plot_components()
+        plt.show()
 
 
 def plot_psd(raw: RawEEGLAB, show=False):
@@ -48,13 +54,12 @@ def plot_psd(raw: RawEEGLAB, show=False):
         raw, events, event_id=[43, 32], tmin=0, tmax=120, preload=True, baseline=(0, 0)
     )
 
-    # ex2d
     # psd_welch doesn't exist in my version so doing a workaround with psd_array_welch
     # I compute the PSD between 8Hz and 12Hz
     psd, freqs = mne.time_frequency.psd_array_welch(
         epochs.get_data(), raw.info["sfreq"], average="mean", fmin=8, fmax=12
     )
-    # The variable psd will contain the amplitudes and freqs will contain the frequencies. 
+    # The variable psd will contain the amplitudes and freqs will contain the frequencies.
     # It is conventional to plot PSD using a logarithmic scale.
     psd = 10 * np.log10(psd)
 
@@ -65,7 +70,7 @@ def plot_psd(raw: RawEEGLAB, show=False):
     psd_poz_1 = psd[0, poz_index, :]
     psd_poz_2 = psd[1, poz_index, :]
 
-    if (not show):
+    if not show:
         return
 
     # plot the PSD
@@ -79,15 +84,38 @@ def plot_psd(raw: RawEEGLAB, show=False):
 
     plt.show()
 
+    # Calculate the average alpha power across all channels for each epoch
+    alpha_power = np.mean(psd[:, :, (freqs >= 8) & (freqs <= 12)], axis=2)
+
+    # Compute the difference in average alpha power between the two epochs
+    alpha_diff = alpha_power[0, :] - alpha_power[1, :]
+
+    # Plot the topographic maps for each epoch's average alpha power
+    # Epoch 1
+    mne.viz.plot_topomap(alpha_power[0, :], raw.info)
+
+    # Epoch 2
+    mne.viz.plot_topomap(alpha_power[1, :], raw.info)
+
+    # Plot the topographic map of the difference between the epochs
+    mne.viz.plot_topomap(
+        alpha_diff, raw.info, names=epochs.info["ch_names"], show_names=True
+    )
+    plt.show()
+
 
 # Load the data
 raw_eeg_data: RawEEGLAB = mne.io.read_raw_eeglab(FILE_PATH, preload=True)
 
 # step 1
+print("hash before interpolation: ", hash(raw_eeg_data))
 interpolate_bad_channels(raw_eeg_data, show=False)
+print("hash after interpolation: ", hash(raw_eeg_data))
 
 # step 2
+print("hash before ICA: ", hash(raw_eeg_data))
 run_ica_and_remove_eye_movement(raw_eeg_data)
 
 # step 3
+print("hash after ICA: ", hash(raw_eeg_data))
 plot_psd(raw_eeg_data, show=True)
