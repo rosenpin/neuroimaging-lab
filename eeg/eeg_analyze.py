@@ -7,12 +7,12 @@ FILE_PATH = "eeg/4EB_01-100.set"  # Replace with the path to your .set file
 
 
 def interpolate_bad_channels(raw: RawEEGLAB, show=False):
-    # plot the data to get an idea of what it looks like and to determine bad channels
     if show:
+        # plot the data to get an idea of what it looks like and to determine bad channels
         raw.plot()
         plt.show()
 
-    # after determining bad channels, add them to the list of bad channels
+    # after determining bad channels, add them to the list of bad channels and interpolate them
     raw.info["bads"] = ["PO5", "PO6", "T7"]
     raw.interpolate_bads()
 
@@ -114,7 +114,7 @@ print("hash after interpolation: ", hash(raw_eeg_data))
 
 # step 2
 print("hash before ICA: ", hash(raw_eeg_data))
-run_ica_and_remove_eye_movement(raw_eeg_data)
+run_ica_and_remove_eye_movement(raw_eeg_data, show=False)
 
 # step 3
 print("hash after ICA: ", hash(raw_eeg_data))
