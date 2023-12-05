@@ -57,7 +57,7 @@ def plot_psd(raw: RawEEGLAB, show=False):
     # psd_welch doesn't exist in my version so doing a workaround with psd_array_welch
     # I compute the PSD between 8Hz and 12Hz
     psd, freqs = mne.time_frequency.psd_array_welch(
-        epochs.get_data(), raw.info["sfreq"], average="mean", fmin=8, fmax=12
+        epochs.get_data(), raw.info["sfreq"], average="mean", fmin=1, fmax=30
     )
     # The variable psd will contain the amplitudes and freqs will contain the frequencies.
     # It is conventional to plot PSD using a logarithmic scale.
@@ -92,9 +92,13 @@ def plot_psd(raw: RawEEGLAB, show=False):
 
     # Plot the topographic maps for each epoch's average alpha power
     # Epoch 1
+    # scale around the mean before plotting it
+    alpha_power[0, :] -= alpha_power[0, :].mean()
     mne.viz.plot_topomap(alpha_power[0, :], raw.info)
 
     # Epoch 2
+    # scale around the mean before plotting it
+    alpha_power[1, :] -= alpha_power[1, :].mean()
     mne.viz.plot_topomap(alpha_power[1, :], raw.info)
 
     # Plot the topographic map of the difference between the epochs
