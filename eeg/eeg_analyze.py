@@ -34,16 +34,18 @@ def run_ica_and_remove_eye_movement(raw: RawEEGLAB, show=False):
     ica.fit(filtered)
 
     # plot the components to determine which ones are eye movements
-    if (show):
-        ica.plot_components()
+    if show:
+        ica.plot_components(show=False)
+        ica.plot_sources(raw)
         plt.show()
 
     # remove the eye movement components
-    ica.exclude = [3, 4]
+    ica.exclude = [0, 1]
     ica.apply(raw)
 
-    if (show):
-        ica.plot_components()
+    if show:
+        ica.plot_components(show=False)
+        ica.plot_sources(raw)
         plt.show()
 
 
@@ -93,13 +95,13 @@ def plot_psd(raw: RawEEGLAB, show=False):
     # Plot the topographic maps for each epoch's average alpha power
     # Epoch 1
     # scale around the mean before plotting it
-    alpha_power[0, :] -= alpha_power[0, :].mean()
-    mne.viz.plot_topomap(alpha_power[0, :], raw.info)
+    scaled_event_43 = alpha_power[0, :] - alpha_power[0, :].mean()
+    mne.viz.plot_topomap(scaled_event_43, raw.info)
 
     # Epoch 2
     # scale around the mean before plotting it
-    alpha_power[1, :] -= alpha_power[1, :].mean()
-    mne.viz.plot_topomap(alpha_power[1, :], raw.info)
+    scaled_event_32 = alpha_power[1, :] - alpha_power[1, :].mean()
+    mne.viz.plot_topomap(scaled_event_32, raw.info)
 
     # Plot the topographic map of the difference between the epochs
     mne.viz.plot_topomap(
@@ -112,14 +114,22 @@ def plot_psd(raw: RawEEGLAB, show=False):
 raw_eeg_data: RawEEGLAB = mne.io.read_raw_eeglab(FILE_PATH, preload=True)
 
 # step 1
-print("hash before interpolation: ", hash(raw_eeg_data))
+hash_before_interpolation = hash(raw_eeg_data)
 interpolate_bad_channels(raw_eeg_data, show=False)
-print("hash after interpolation: ", hash(raw_eeg_data))
+# making sure that the data has changed
+hash_after_interpolation = hash(raw_eeg_data)
+if hash_before_interpolation == hash_after_interpolation:
+    print("Interpolation did not change the data")
+    exit(1)
 
 # step 2
-print("hash before ICA: ", hash(raw_eeg_data))
-run_ica_and_remove_eye_movement(raw_eeg_data, show=False)
+hash_before_ica = hash(raw_eeg_data)
+run_ica_and_remove_eye_movement(raw_eeg_data, show=True)
+# making sure that the data has changed
+hash_after_ica = hash(raw_eeg_data)
+if hash_before_ica == hash_after_ica:
+    print("ICA did not change the data")
+    exit(1)
 
 # step 3
-print("hash after ICA: ", hash(raw_eeg_data))
 plot_psd(raw_eeg_data, show=True)
