@@ -48,36 +48,49 @@ def run_ica_and_remove_eye_movement(raw: RawEEGLAB, show=False):
         ica.plot_sources(raw)
         plt.show()
 
+def _get_psd_from_epochs(epochs: mne.Epochs, raw: RawEEGLAB, fmin: int, fmax: int):
+    psd_43_32, freqs = mne.time_frequency.psd_array_welch(
+        epochs.get_data(), raw.info["sfreq"], average="mean", fmin=1, fmax=30
+    )
+
+    # The variable psd will contain the amplitudes and freqs will contain the frequencies.
+    # It is conventional to plot PSD using a logarithmic scale.
+    psd_43_32 = 10 * np.log10(psd_43_32)
+    return psd_43_32, freqs
+
 
 def plot_psd(raw: RawEEGLAB, show=False):
     events = mne.events_from_annotations(raw)[0]
     # Extract 120s following event IDs 43 and 32
-    epochs = mne.Epochs(
+    epochs_43_32 = mne.Epochs(
         raw, events, event_id=[43, 32], tmin=0, tmax=120, preload=True, baseline=(0, 0)
+    )
+    # Extract 120s following all events
+    all_epochs = mne.Epochs(
+        raw, events, event_id=None, tmin=0, tmax=120, preload=True, baseline=(0, 0)
     )
 
     # psd_welch doesn't exist in my version so doing a workaround with psd_array_welch
     # I compute the PSD between 8Hz and 12Hz
-    psd, freqs = mne.time_frequency.psd_array_welch(
-        epochs.get_data(), raw.info["sfreq"], average="mean", fmin=1, fmax=30
-    )
-    # The variable psd will contain the amplitudes and freqs will contain the frequencies.
-    # It is conventional to plot PSD using a logarithmic scale.
-    psd = 10 * np.log10(psd)
+    psd_43_32, freqs_43_32 = _get_psd_from_epochs(epochs_43_32, raw, 8, 12)
+
+    psd_all, freqs = _get_psd_from_epochs(all_epochs, raw, 1, 30)
+
 
     # find POZ index so we can plot it later
-    poz_index = epochs.ch_names.index("POZ")
+    poz_index = all_epochs.ch_names.index("POZ")
 
-    # find the relevant events to plot
-    psd_poz_1 = psd[0, poz_index, :]
-    psd_poz_2 = psd[1, poz_index, :]
+    # create a list of all psds for POZ
+    psd_poz = [psd_all[i, poz_index, :] for i in range(len(psd_all))]
 
     if not show:
         return
 
     # plot the PSD
-    plt.plot(freqs, psd_poz_1, label="43")
-    plt.plot(freqs, psd_poz_2, label="32")
+    for i in range(len(psd_poz)):
+        plt.plot(freqs, psd_poz[i], label=str(i))
+    #plt.plot(freqs, psd_poz_1, label="43")
+    #plt.plot(freqs, psd_poz_2, label="32")
     # add labels and title
     plt.xlabel("Frequency (Hz)")
     plt.ylabel("PSD (dB/Hz)")
@@ -87,7 +100,7 @@ def plot_psd(raw: RawEEGLAB, show=False):
     plt.show()
 
     # Calculate the average alpha power across all channels for each epoch
-    alpha_power = np.mean(psd[:, :, (freqs >= 8) & (freqs <= 12)], axis=2)
+    alpha_power = np.mean(psd_43_32[:, :, (freqs_43_32 >= 8) & (freqs_43_32 <= 12)], axis=2)
 
     # Compute the difference in average alpha power between the two epochs
     alpha_diff = alpha_power[0, :] - alpha_power[1, :]
@@ -105,7 +118,7 @@ def plot_psd(raw: RawEEGLAB, show=False):
 
     # Plot the topographic map of the difference between the epochs
     mne.viz.plot_topomap(
-        alpha_diff, raw.info, names=epochs.info["ch_names"], show_names=True
+        alpha_diff, raw.info, names=epochs_43_32.info["ch_names"], show_names=True
     )
     plt.show()
 
