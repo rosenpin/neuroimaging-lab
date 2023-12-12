@@ -83,6 +83,7 @@ def plot_psd(raw: RawEEGLAB, show=False):
     plt.ylabel("PSD (dB/Hz)")
     plt.title("PSD of POZ Channel")
     plt.grid(True)
+    plt.legend()
 
     plt.show()
 
